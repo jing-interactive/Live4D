@@ -1,7 +1,7 @@
-VisionTouch | 视触
+Live4D
 =========
 
-Multi touch system for Kinect V1 / V2 devices and Intel RealSense devices.
+Point cloud streaming system for Kinect V1 / V2 devices and Intel RealSense devices.
 
 To build this project, you need:
 
