@@ -5,7 +5,7 @@
 #include "cinder/Log.h"
 #include "cinder/PolyLine.h"
 
-#include "Osc.h"
+#include "Cinder/osc/Osc.h"
 
 #include "DepthSensor.h"
 #include "Cinder-VNM/include/MiniConfig.h"
@@ -26,13 +26,14 @@ public:
         params->addParam("FPS", &mFps, true);
 
         Kinect::DeviceType type = Kinect::DeviceType(SENSOR_TYPE);
-        mDevice = Kinect::Device::create(type);
+        Kinect::Device::Option option;
+        option.enableColor = true;
+        mDevice = Kinect::Device::create(type, option);
         if (!mDevice->isValid())
         {
             quit();
             return;
         }
-        mDevice->signalDepthDirty.connect(std::bind(&KinServerApp::updateDepthRelated, this));
 
         getWindow()->setTitle("Live4D");
         getWindow()->setSize(1024, 768);
@@ -62,10 +63,6 @@ public:
     }
 
 private:
-    void updateDepthRelated()
-    {
-
-    }
 
     float mFps = 0;
     Kinect::DeviceRef mDevice;
