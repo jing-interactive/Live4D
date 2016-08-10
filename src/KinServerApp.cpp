@@ -30,7 +30,6 @@ Transform_Mode transform_mode = none;
 
 // Variables for Calculations and Loops
 const int NUM_CAMS = 2;
-int GLwindow;
 int mx = -1, my = -1;        // Prevous mouse coordinates
 int rotangles[2] = { 0 }; // Panning angles
 float zoom = 1;         // zoom factor
@@ -41,29 +40,17 @@ vector< Vec3f > P_pts, Q_pts; // This is how they're collected
 
 // This is used for collecting Correspondences. It keeps track of where the points were just collected from.
 enum PointsType{ P_POINTS, Q_POINTS, NONE };
-PointsType POINTS = NONE;
+PointsType pointsType = NONE;
 
 // Window Size and Position
 const int window_width = 640, window_height = 480;
 int window_xpos = 1000, window_ypos = 100;
-
-// OpenGL Callback Functions
-void cbRender();
-void cbReSizeGLScene(int Width, int Height);
-void cbMouseMoved(int x, int y);
-void cbMousePress(int button, int state, int x, int y);
-void cbTimer(int ms);
-void cbKeyPressed(unsigned char key, int x, int y);
-
-// OpenCV Callback Functions
-void cbMouseEvent(int event, int x, int y, int flags, void* param);
 
 // Handy functions to call in the render function
 void transformation(int cam); // This applies the procrustes transformations
 void loadVertexMatrix(); // This applies the projection transformation
 void noKinectQuit();
 void draw_axes();
-void draw_line(Vec3b v1, Vec3b v2);
 
 // Computer Vision functions
 void displayCVcams(); // Calls joinFrames and displays the RGB images
@@ -90,181 +77,14 @@ void printMat(const Mat& A);
 vector<Mat> rgbCV;
 vector<Mat> depthCV;
 
-#if 0
-int main(int argc, char** argv) {
-
-    // load the first frames (OpenCV gets upset otherwise)
-    for (int cam = 0; cam < NUM_CAMS; cam++) {
-        rgbCV.push_back(freenect_sync_get_rgb_cv(cam));
-        depthCV.push_back(freenect_sync_get_depth_cv(cam));
-    }
-
-    // Initialize Display Mode
-    glutInit(&argc, argv);
-    glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_ALPHA | GLUT_DEPTH);
-
-    // Initialize OpenGL Window
-    glutInitWindowSize(window_width, window_height);
-    glutInitWindowPosition(window_xpos, window_ypos);
-    GLwindow = glutCreateWindow("Kinect Registration");
-    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-
-    // Initialize OpenCV Window
-    namedWindow("Camera 0 | Camera 1", CV_WINDOW_AUTOSIZE);
-
-    // Setup The GL Callbacks
-    glutDisplayFunc(cbRender);
-    glutReshapeFunc(cbReSizeGLScene);
-    glutKeyboardFunc(cbKeyPressed);
-    glutMotionFunc(cbMouseMoved);
-    glutMouseFunc(cbMousePress);
-    glutTimerFunc(10, cbTimer, 10);
-
-    // Setup The CV Callbacks
-    cvSetMouseCallback("Camera 0 | Camera 1", cbMouseEvent);
-
-    glutMainLoop();
-
-    return 0;
-}
-#endif
-
-void cbRender() {
-    short xyz[window_height][window_width][3];
-    unsigned char rgb[window_height][window_width][3];
-    unsigned int indices[window_height][window_width];
-
-    // Flush the OpenCV Mat's from last frame
-    rgbCV.clear();
-    depthCV.clear();
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glEnable(GL_DEPTH_TEST);
-    glPushMatrix();
-    glScalef(zoom, zoom, 1);
-    gluLookAt(0, 0, 3.5, 0, 0, 0, 0, 1.0, 0);
-    glRotatef(rotangles[0], 1, 0, 0);
-    glRotatef(rotangles[1], 0, 1, 0);
-    draw_axes();
-
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glEnableClientState(GL_COLOR_ARRAY);
-    glPointSize(2);
-    //--------Camera 0 (P)-----------
-    loadBuffers(0, indices, xyz, rgb);
-    glVertexPointer(3, GL_SHORT, 0, xyz);
-    glColorPointer(3, GL_UNSIGNED_BYTE, 0, rgb);
-    glPushMatrix();
-    // transform centroid of P to origin and rotate
-    transformation(0);
-    // projection matrix (camera specific - Can be improved)
-    loadVertexMatrix();
-    glDrawArrays(GL_POINTS, 0, window_width*window_height);
-    glPopMatrix();
-    //--------Camera 1 (Q)-----------
-    loadBuffers(1, indices, xyz, rgb);
-    glVertexPointer(3, GL_SHORT, 0, xyz);
-    glColorPointer(3, GL_UNSIGNED_BYTE, 0, rgb);
-    glPushMatrix();
-    // translate centroid of Q to origin
-    transformation(1);
-    loadVertexMatrix();
-    glDrawArrays(GL_POINTS, 0, window_width*window_height);
-    glPopMatrix();
-    glPopMatrix();
-
-    displayCVcams();
-    glFlush();
-    glutSwapBuffers();
-    glDisable(GL_DEPTH_TEST);
-}
-
-void cbKeyPressed(unsigned char key, int x, int y) {
-
-    // Press esc to exit
-    if (key == 27) {
-        glutDestroyWindow(GLwindow);
-        exit(0);
-    }
-    else if (key == 'p') {
-        procrustes(P_pts, Q_pts, trans, rot);
-        // The correspondence arrays are flushed after the transformations
-        // are calculated. Just in case the registration attempt is poor 
-        // and you want to try again, you can just start collecting
-        // correspondences again without restarting the program
-        P_pts.clear();
-        Q_pts.clear();
-    }
-    else if (key == 'r')
-        transform_mode = rotation;
-    else if (key == 't')
-        transform_mode = translation;
-    else if (key == 'a')
-        transform_mode = full_transform;
-    else if (key == 'n')
-        transform_mode = none;
-    else if (key == 'z')
-        zoom *= 1.1f;
-    else if (key == 'x')
-        zoom /= 1.1f;
-
-}
-
-void cbMouseMoved(int x, int y) {
-
-    if (mx >= 0 && my >= 0) {
-        rotangles[0] += y - my;
-        rotangles[1] += x - mx;
-    }
-
-    mx = x;
-    my = y;
-
-}
-
-void cbMousePress(int button, int state, int x, int y) {
-
-    if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
-        mx = x;
-        my = y;
-    }
-
-    if (button == GLUT_LEFT_BUTTON && state == GLUT_UP) {
-        mx = -1;
-        my = -1;
-    }
-
-}
-
-// This ensures that OpenGL and OpenCV play nicely together
-// ms needs to be the same time as OpenCV's waitKey( ms )
-void cbTimer(int ms) {
-
-    glutTimerFunc(ms, cbTimer, ms);
-    glutPostRedisplay();
-
-}
-
-void cbReSizeGLScene(int Width, int Height) {
-
-    glViewport(0, 0, Width, Height);
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    gluPerspective(60, 4 / 3., 0.3, 200);
-    glMatrixMode(GL_MODELVIEW);
-}
-
-void noKinectQuit() {
-    printf("Error: Kinect not connected?\n");
-    exit(1);
-}
-
 void loadBuffers(int cameraIndx,
     unsigned int indices[window_height][window_width],
     short xyz[window_height][window_width][3],
     unsigned char rgb[window_height][window_width][3]) {
 
-    rgbCV.push_back(freenect_sync_get_rgb_cv(cameraIndx));
-    depthCV.push_back(freenect_sync_get_depth_cv(cameraIndx));
+    // TODO:
+    //rgbCV.push_back(freenect_sync_get_rgb_cv(cameraIndx));
+    //depthCV.push_back(freenect_sync_get_depth_cv(cameraIndx));
 
     if (rgbCV[cameraIndx].empty() || depthCV[cameraIndx].empty())
         noKinectQuit();
@@ -275,7 +95,7 @@ void loadBuffers(int cameraIndx,
             xyz[row][col][1] = row;
             xyz[row][col][2] = getDepth(cameraIndx, row, col);
             indices[row][col] = (window_height + row)*window_width + col;
-            Vec3b color = rgbCV[cameraIndx].at<Vec3b>(row, col);
+            vec3 color = rgbCV[cameraIndx].at<vec3>(row, col);
             rgb[row][col][0] = color[0];
             rgb[row][col][1] = color[1];
             rgb[row][col][2] = color[2];
@@ -300,7 +120,9 @@ void loadVertexMatrix() {
         0, 0, 0, a,
         -cx / fx, cy / fy, -1, b
     };
-    glMultMatrixf(mat);
+
+    // TODO: proj?
+    gl::multModelMatrix(glm::make_mat4(mat));
 }
 
 void printMat(const Mat& A) {
@@ -351,37 +173,28 @@ float getDepth(int cam, int x, int y) {
     return d;
 }
 
-void draw_line(Vec3b v1, Vec3b v2) {
-
-    glBegin(GL_LINES);
-    glVertex3f(v1[0], v1[1], v1[2]);
-    glVertex3f(v2[0], v2[1], v2[2]);
-    glEnd();
-
-}
-
 void draw_axes() {
 
     //X Axis
 
-    glColor3f(1, 0, 0);    //red
-    Vec3b r1(0, 0, 0);
-    Vec3b r2(1, 0, 0);
-    draw_line(r1, r2);
+    gl::color(Color8u(1, 0, 0));    //red
+    vec3 r1(0, 0, 0);
+    vec3 r2(1, 0, 0);
+    gl::drawLine(r1, r2);
 
     //Y Axis
 
-    glColor3f(0, 1, 0);    //green
-    Vec3b g1(0, 0, 0);
-    Vec3b g2(0, 1, 0);
-    draw_line(g1, g2);
+    gl::color(Color8u(0, 1, 0));    //green
+    vec3 g1(0, 0, 0);
+    vec3 g2(0, 1, 0);
+    gl::drawLine(g1, g2);
 
     //Z Axis
 
-    glColor3f(0, 0, 1);    //blue
-    Vec3b b1(0, 0, 0);
-    Vec3b b2(0, 0, 1);
-    draw_line(b1, b2);
+    gl::color(Color8u(0, 0, 1));    //blue
+    vec3 b1(0, 0, 0);
+    vec3 b2(0, 0, 1);
+    gl::drawLine(b1, b2);
 
 }
 
@@ -391,10 +204,10 @@ Mat joinFrames(const Mat& img1, const Mat& img2) {
     Mat rslt = Mat::zeros(img1.rows, img1.cols * 2, img1.type());
     for (int i = 0; i < img1.rows; i++)
         for (int j = 0; j < img1.cols; j++) {
-            Vec3b p = img1.at<Vec3b>(i, j);
-            Vec3b q = img2.at<Vec3b>(i, j);
-            rslt.at<Vec3b>(i, j) = p;
-            rslt.at<Vec3b>(i, j + window_width) = q;
+            vec3 p = img1.at<vec3>(i, j);
+            vec3 q = img2.at<vec3>(i, j);
+            rslt.at<vec3>(i, j) = p;
+            rslt.at<vec3>(i, j + window_width) = q;
         }
 
     return rslt;
@@ -411,18 +224,6 @@ void displayCVcams() {
 
     Mat rgb = joinFrames(rgbCV[0], rgbCV[1]);
     imshow("Camera 0 | Camera 1", rgb);
-
-    // Time here needs to be the same as cbTimer
-    // returns -1 if no key pressed
-    char key = waitKey(10);
-
-    // If someone presses a button while a cv window 
-    // is in the foreground we want the behavior to
-    // be the same as for the OpenGL window, so call 
-    // OpenGL's cbKeyPressed callback function
-    if (key != -1)
-        cbKeyPressed(key, 0, 0);
-
 }
 
 match calculateCentroids(const Mat& verts1, const Mat& verts2) {
@@ -514,20 +315,22 @@ void transformation(int cam) {
     if (transform_mode == none)
         return;
     else if (transform_mode == rotation && cam == 0) {
-        glMultMatrixf((GLfloat*)rot.data);
+        glm::mat4 mat = glm::make_mat4(rot.data);
+        gl::multModelMatrix(mat);
     }
     else if (transform_mode == translation && cam == 0) {
-        glTranslatef(-centroids.first[0], -centroids.first[1], -centroids.first[2]);
+        gl::translate(-centroids.first[0], -centroids.first[1], -centroids.first[2]);
     }
     else if (transform_mode == translation && cam == 1) {
-        glTranslatef(-centroids.second[0], -centroids.second[1], -centroids.second[2]);
+        gl::translate(-centroids.second[0], -centroids.second[1], -centroids.second[2]);
     }
     else if (transform_mode == full_transform && cam == 0) {
-        glMultMatrixf((GLfloat*)rot.data);
-        glTranslatef(-centroids.first[0], -centroids.first[1], -centroids.first[2]);
+        glm::mat4 mat = glm::make_mat4(rot.data);
+        gl::multModelMatrix(mat);
+        gl::translate(-centroids.first[0], -centroids.first[1], -centroids.first[2]);
     }
     else if (transform_mode == full_transform && cam == 1) {
-        glTranslatef(-centroids.second[0], -centroids.second[1], -centroids.second[2]);
+        gl::translate(-centroids.second[0], -centroids.second[1], -centroids.second[2]);
     }
 
 }
@@ -540,17 +343,17 @@ void cbMouseEvent(int event, int col, int row, int flags, void* param) {
         if (col <= 640) { // This is how it know which points you're
             // collecting (images side by side)
             printf(" Click in P ( %d, %d, %f )\n", col, row, getDepth(0, row, col));
-            if (POINTS == NONE) {
+            if (pointsType == NONE) {
                 // If first click, grab the point and
                 P_pts.push_back(Vec3f(col, row, getDepth(0, row, col)));
                 //  state that the last point grabbed was a point in P
-                POINTS = P_POINTS;
+                pointsType = P_POINTS;
                 break;
             }
-            if (POINTS == P_POINTS) {
+            if (pointsType == P_POINTS) {
                 printf("Can't match to the same image! Erasing previous point...\n");
                 P_pts.pop_back();
-                POINTS = NONE;
+                pointsType = NONE;
                 break;
             }
             // If not NONE and not P_POINTS must be Q_POINTS
@@ -562,7 +365,7 @@ void cbMouseEvent(int event, int col, int row, int flags, void* param) {
                 printf("\nDepths are bad! Erasing correspondence...\n");
                 P_pts.pop_back();
                 Q_pts.pop_back();
-                POINTS = NONE;
+                pointsType = NONE;
                 break;
             }
             else {
@@ -580,20 +383,20 @@ void cbMouseEvent(int event, int col, int row, int flags, void* param) {
                 for (int i = 0; i < (int)Q_pts.size(); i++)
                     printf("%d - (%f,%f,%f)\n", i, Q_pts[i][0], Q_pts[i][1], Q_pts[i][2]);
             }
-            POINTS = NONE;
+            pointsType = NONE;
         }
         else {
             // SAME AS ABOVE JUST FOR OTHER SIDE OF WINDOW ( Q POINTS )
             printf(" Click in Q ( %d, %d, %f )\n", col - 640, row, getDepth(1, row, col - 640));
-            if (POINTS == NONE) {
+            if (pointsType == NONE) {
                 Q_pts.push_back(Vec3f(col - 640, row, getDepth(1, row, col - 640)));
-                POINTS = Q_POINTS;
+                pointsType = Q_POINTS;
                 break;
             }
-            if (POINTS == Q_POINTS) {
+            if (pointsType == Q_POINTS) {
                 printf("Can't match to the same image! Erasing previous point...\n");
                 Q_pts.pop_back();
-                POINTS = NONE;
+                pointsType = NONE;
                 break;
             }
             Q_pts.push_back(Vec3f(col - 640, row, getDepth(1, row, col - 640)));
@@ -603,7 +406,7 @@ void cbMouseEvent(int event, int col, int row, int flags, void* param) {
                 P_pts.pop_back();
                 Q_pts.pop_back();
                 printf("\nDepths are bad! Erasing correspondence...\n");
-                POINTS = NONE;
+                pointsType = NONE;
                 break;
             }
             else {
@@ -621,7 +424,7 @@ void cbMouseEvent(int event, int col, int row, int flags, void* param) {
                     printf("%d - (%f,%f,%f)\n", i, Q_pts[i][0], Q_pts[i][1], Q_pts[i][2]);
             }
 
-            POINTS = NONE;
+            pointsType = NONE;
         }
     }
 }
@@ -752,6 +555,7 @@ void findBestReansformSVD(Mat& _m, Mat& _d) {
     m.convertTo(_m, CV_32S);
 }
 
+#if 0
 void icp() {
     vector<int> pair;
     vector<float> dists;
@@ -783,6 +587,7 @@ void icp() {
         X = X.reshape(1); // back to 1-channel
     }
 }
+#endif
 
 class KinServerApp : public App
 {
@@ -807,6 +612,11 @@ public:
 
         getWindow()->setTitle("Live4D");
         getWindow()->setSize(1024, 768);
+
+        for (int cam = 0; cam < NUM_CAMS; cam++) {
+            rgbCV.push_back(freenect_sync_get_rgb_cv(cam));
+            depthCV.push_back(freenect_sync_get_depth_cv(cam));
+        }
     }
 
     void resize() override
@@ -816,15 +626,108 @@ public:
     void draw() override
     {
         gl::clear(ColorA::gray(0.5f));
+
+        short xyz[window_height][window_width][3];
+        unsigned char rgb[window_height][window_width][3];
+        unsigned int indices[window_height][window_width];
+
+        // Flush the OpenCV Mat's from last frame
+        rgbCV.clear();
+        depthCV.clear();
+
+#if 0
+        glEnable(GL_DEPTH_TEST);
+        glPushMatrix();
+        glScalef(zoom, zoom, 1);
+        gluLookAt(0, 0, 3.5, 0, 0, 0, 0, 1.0, 0);
+        glRotatef(rotangles[0], 1, 0, 0);
+        glRotatef(rotangles[1], 0, 1, 0);
+        draw_axes();
+
+        glEnableClientState(GL_VERTEX_ARRAY);
+        glEnableClientState(GL_COLOR_ARRAY);
+        glPointSize(2);
+        //--------Camera 0 (P)-----------
+        loadBuffers(0, indices, xyz, rgb);
+        glVertexPointer(3, GL_SHORT, 0, xyz);
+        glColorPointer(3, GL_UNSIGNED_BYTE, 0, rgb);
+        glPushMatrix();
+        // transform centroid of P to origin and rotate
+        transformation(0);
+        // projection matrix (camera specific - Can be improved)
+        loadVertexMatrix();
+        glDrawArrays(GL_POINTS, 0, window_width*window_height);
+        glPopMatrix();
+        //--------Camera 1 (Q)-----------
+        loadBuffers(1, indices, xyz, rgb);
+        glVertexPointer(3, GL_SHORT, 0, xyz);
+        glColorPointer(3, GL_UNSIGNED_BYTE, 0, rgb);
+        glPushMatrix();
+        // translate centroid of Q to origin
+        transformation(1);
+        loadVertexMatrix();
+        glDrawArrays(GL_POINTS, 0, window_width*window_height);
+        glPopMatrix();
+        glPopMatrix();
+
+        displayCVcams();
+        glFlush();
+        glutSwapBuffers();
+        glDisable(GL_DEPTH_TEST);
+#endif
     }
 
     void keyUp(KeyEvent event) override
     {
         int code = event.getCode();
-        if (code == KeyEvent::KEY_ESCAPE)
+        switch (code)
         {
-            quit();
+        case KeyEvent::KEY_ESCAPE: quit(); break;
+        case KeyEvent::KEY_p:
+        {
+            procrustes(P_pts, Q_pts, trans, rot);
+            // The correspondence arrays are flushed after the transformations
+            // are calculated. Just in case the registration attempt is poor 
+            // and you want to try again, you can just start collecting
+            // correspondences again without restarting the program
+            P_pts.clear();
+            Q_pts.clear();
+            break;
         }
+        case KeyEvent::KEY_r: 	transform_mode = rotation; 		break;
+        case KeyEvent::KEY_t: 	transform_mode = translation;	break;
+        case KeyEvent::KEY_a:	transform_mode = full_transform; break;
+        case KeyEvent::KEY_n:	transform_mode = none;			break;
+        case KeyEvent::KEY_z:	zoom *= 1.1f;					break;
+        case KeyEvent::KEY_x:	zoom /= 1.1f;					break;
+        }
+    }
+
+    void mouseUp(MouseEvent event)
+    {
+        if (event.isLeft()) {
+            mx = -1;
+            my = -1;
+        }
+    }
+
+    void mouseDown(MouseEvent event)
+    {
+        if (event.isLeft()) {
+            mx = event.getX();
+            my = event.getY();
+        }
+    }
+
+    void mouseDrag(MouseEvent event)
+    {
+        if (mx >= 0 && my >= 0) {
+            rotangles[0] += event.getY() - my;
+            rotangles[1] += event.getX() - mx;
+        }
+
+        mx = event.getX();
+        my = event.getY();
     }
 
     void update() override
