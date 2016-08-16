@@ -128,13 +128,17 @@
     <ClInclude Include="..\..\Cinder\blocks\OpenCV\CinderOpenCV.h" />
     <ClInclude Include="..\..\Cinder\blocks\OSC\src\cinder\osc\Osc.h" />
     <ClInclude Include="..\include\Resources.h" />
+    <ClInclude Include="..\src\BlobTracker.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Cinder\blocks\Cinder-VNM\src\MiniConfig.cpp" />
     <ClCompile Include="..\..\Cinder\blocks\OSC\src\cinder\osc\Osc.cpp" />
+    <ClCompile Include="..\src\BlobTracker.cpp" />
     <ClCompile Include="..\src\KinServerApp.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\assets\pointcloud.frag" />
+    <None Include="..\assets\pointcloud.vert" />
     <None Include="..\include\item.def" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

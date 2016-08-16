@@ -36,6 +36,9 @@
     <ClCompile Include="..\..\Cinder\blocks\OSC\src\cinder\osc\Osc.cpp">
       <Filter>Blocks\OSC</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\BlobTracker.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\Resources.h">
@@ -53,6 +56,9 @@
     <ClInclude Include="..\..\Cinder\blocks\OSC\src\cinder\osc\Osc.h">
       <Filter>Blocks\OSC</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\BlobTracker.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Resources.rc">
@@ -61,6 +67,12 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="..\include\item.def">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="..\assets\pointcloud.vert">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="..\assets\pointcloud.frag">
       <Filter>Resource Files</Filter>
     </None>
   </ItemGroup>
