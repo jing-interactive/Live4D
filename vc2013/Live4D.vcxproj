@@ -78,7 +78,7 @@
       <TargetMachine>MachineX86</TargetMachine>
       <IgnoreSpecificDefaultLibraries>LIBCMT;LIBCPMT</IgnoreSpecificDefaultLibraries>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
-      <DelayLoadDLLs>kinect10.dll;kinect20.dll;Kinect20.Face.dll</DelayLoadDLLs>
+      <DelayLoadDLLs>kinect10.dll;kinect20.dll;Kinect20.Face.dll;OpenNI2.dll</DelayLoadDLLs>
     </Link>
     <PostBuildEvent>
       <Command>
@@ -113,7 +113,7 @@
       <DataExecutionPrevention />
       <TargetMachine>MachineX86</TargetMachine>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
-      <DelayLoadDLLs>kinect10.dll;kinect20.dll;Kinect20.Face.dll</DelayLoadDLLs>
+      <DelayLoadDLLs>kinect10.dll;kinect20.dll;Kinect20.Face.dll;OpenNI2.dll</DelayLoadDLLs>
     </Link>
     <PostBuildEvent>
       <Command>
@@ -124,22 +124,26 @@
     <ResourceCompile Include="Resources.rc" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\Cinder\blocks\Cinder-VNM\include\AssetManager.h" />
     <ClInclude Include="..\..\Cinder\blocks\Cinder-VNM\include\MiniConfig.h" />
-    <ClInclude Include="..\..\Cinder\blocks\OpenCV\CinderOpenCV.h" />
     <ClInclude Include="..\..\Cinder\blocks\OSC\src\cinder\osc\Osc.h" />
     <ClInclude Include="..\include\Resources.h" />
     <ClInclude Include="..\src\BlobTracker.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\Cinder\blocks\Cinder-VNM\src\AssetManager.cpp" />
     <ClCompile Include="..\..\Cinder\blocks\Cinder-VNM\src\MiniConfig.cpp" />
     <ClCompile Include="..\..\Cinder\blocks\OSC\src\cinder\osc\Osc.cpp" />
-    <ClCompile Include="..\src\BlobTracker.cpp" />
     <ClCompile Include="..\src\KinServerApp.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\assets\pointcloud.frag" />
     <None Include="..\assets\pointcloud.vert" />
     <None Include="..\include\item.def" />
+    <None Include="..\README.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <Xml Include="..\assets\MiniConfig.xml" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

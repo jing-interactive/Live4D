@@ -36,8 +36,8 @@
     <ClCompile Include="..\..\Cinder\blocks\OSC\src\cinder\osc\Osc.cpp">
       <Filter>Blocks\OSC</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\BlobTracker.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="..\..\Cinder\blocks\Cinder-VNM\src\AssetManager.cpp">
+      <Filter>Blocks\VNM</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -47,9 +47,6 @@
     <ClInclude Include="..\include\Resources.h">
       <Filter>Resource Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Cinder\blocks\OpenCV\CinderOpenCV.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\Cinder\blocks\Cinder-VNM\include\MiniConfig.h">
       <Filter>Blocks\VNM</Filter>
     </ClInclude>
@@ -58,6 +55,9 @@
     </ClInclude>
     <ClInclude Include="..\src\BlobTracker.h">
       <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Cinder\blocks\Cinder-VNM\include\AssetManager.h">
+      <Filter>Blocks\VNM</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -75,5 +75,11 @@
     <None Include="..\assets\pointcloud.frag">
       <Filter>Resource Files</Filter>
     </None>
+    <None Include="..\README.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <Xml Include="..\assets\MiniConfig.xml">
+      <Filter>Resource Files</Filter>
+    </Xml>
   </ItemGroup>
 </Project>

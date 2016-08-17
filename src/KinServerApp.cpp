@@ -4,6 +4,7 @@
 #include "cinder/params/Params.h"
 #include "cinder/Log.h"
 #include "cinder/PolyLine.h"
+#include "cinder/CameraUi.h"
 
 #include "Cinder/osc/Osc.h"
 #include "CinderOpenCV.h"
@@ -11,6 +12,7 @@
 #include "DepthSensor.h"
 #include "Cinder-VNM/include/MiniConfig.h"
 #include "Cinder-VNM/include/TextureHelper.h"
+#include "Cinder-VNM/include/AssetManager.h"
 
 #include <vector>
 
@@ -41,52 +43,42 @@ public:
     params::InterfaceGlRef	mParams;
 
     // CAMERA
-    CameraPersp		mCam;
-    quat			mSceneRotation;
-    vec3			mEye, mCenter, mUp;
-    float			mCameraDistance;
-    float			mKinectTilt;
+    CameraPersp         mCam;
+    CameraUi            mCamUi;
+
 
     // KINECT AND TEXTURES
     Kinect::DeviceRef		mKinect;
     gl::TextureRef  mDepthTexture;
-    float			mScale;
-    float			mXOff, mYOff;
+    gl::TextureRef  mColorTexture;
 
     // BATCH AND SHADER
-    gl::BatchRef    mPointCloud;
     gl::GlslProgRef	mPointCloudShader;
 };
 
 
 PointCloudGl::PointCloudGl()
 {
+    readConfig();
+
+    mCamUi = CameraUi(&mCam, getWindow(), -1);
+
     // SETUP PARAMS
     mParams = params::InterfaceGl::create("KinectPointCloud", vec2(200, 180));
-    mParams->addParam("Scene Rotation", &mSceneRotation, "opened=1");
-    mParams->addParam("Cam Distance", &mCameraDistance, "step=.1 keyIncr=s keyDecr=w");
-    mParams->addParam("Kinect Tilt", &mKinectTilt, "min=-31 max=31 keyIncr=T keyDecr=t");
-
-    // SETUP CAMERA
-    mCameraDistance = 10.0f;
-    mEye = vec3(-10.0f, 10.0f, mCameraDistance);
-    mCenter = vec3(0, 0, -5.);
-    mUp = vec3(0, 1, 0);
-    mCam.setPerspective(75.0f, getWindowAspectRatio(), 1.0f, 100000.0f);
-    mCam.lookAt(mEye, mCenter, mUp);
 
     // SETUP KINECT AND TEXTURES
     Kinect::DeviceType type = Kinect::DeviceType(SENSOR_TYPE);
     Kinect::Device::Option option;
     option.enableColor = true;
+    option.enablePointCloud = true;
     mKinect = Kinect::Device::create(type, option);
     if (!mKinect->isValid())
     {
         quit();
         return;
     }
-    mDepthTexture = gl::Texture::create(mKinect->getDepthSize().x, mKinect->getDepthSize().y,
-        gl::Texture::Format().internalFormat(GL_R16UI).dataType(GL_UNSIGNED_SHORT).minFilter(GL_NEAREST).magFilter(GL_NEAREST));
+    //mDepthTexture = gl::Texture::create(mKinect->getDepthSize().x, mKinect->getDepthSize().y,
+    //    gl::Texture::Format().internalFormat(GL_R16UI).dataType(GL_UNSIGNED_SHORT).minFilter(GL_NEAREST).magFilter(GL_NEAREST));
 
     // SETUP VBO AND SHADER
 
@@ -98,22 +90,16 @@ PointCloudGl::PointCloudGl()
     }
 
     auto mesh = createVboMesh();
-    mPointCloud = gl::Batch::create(mesh, mPointCloudShader);
     mPointCloudShader->uniform("uDepthTexture", 0);
-    mPointCloudShader->uniform("ref_pix_size", mKinect->getZeroPlanePixelSize());
-    mPointCloudShader->uniform("ref_distance", mKinect->getZeroPlaneDistance());
-    mPointCloudShader->uniform("const_shift", mKinect->getRegistrationConstShift());
-    mPointCloudShader->uniform("dcmos_emitter_dist", mKinect->getDcmosEmitterDist());
+    mPointCloudShader->uniform("uDepthToMmScale", mKinect->getDepthToMmScale());
 
     // SETUP GL
     gl::enableDepthWrite();
     gl::enableDepthRead();
-
 }
 
 gl::VboMeshRef PointCloudGl::createVboMesh()
 {
-
     vector<float> data;
 
     int numVertices = VBO_X_RES * VBO_Y_RES;
@@ -124,14 +110,11 @@ gl::VboMeshRef PointCloudGl::createVboMesh()
             float xPer = x / (float)(VBO_X_RES - 1);
             float yPer = y / (float)(VBO_Y_RES - 1);
 
-            auto position = vec3(x, y, 0.);//vec3( ( xPer * 2.0f - 1.0f ) * VBO_X_RES, ( yPer * 2.0f - 1.0f ) * VBO_Y_RES, 0.0f );
-            auto tc = vec2(xPer, yPer);
-
-            data.push_back(position.x);
-            data.push_back(position.y);
-            data.push_back(position.z);
-            data.push_back(tc.x);
-            data.push_back(tc.y);
+            data.push_back(x);
+            data.push_back(y);
+            data.push_back(0);
+            data.push_back(xPer);
+            data.push_back(yPer);
 
         }
     }
@@ -145,35 +128,32 @@ gl::VboMeshRef PointCloudGl::createVboMesh()
     vector<pair<geom::BufferLayout, gl::VboRef>> layouts(1, make_pair(data_layout, data_buffer));
 
     return gl::VboMesh::create(numVertices, GL_POINTS, layouts);
-
 }
 
 void PointCloudGl::update()
 {
-    if (mKinect->checkNewDepthFrame())
-        mDepthTexture->update(Channel16u(mKinect->getDepthImage()));
-
-    if (mKinectTilt != mKinect->getTilt())
-        mKinect->setTilt(mKinectTilt);
-
+    updateTexture(mDepthTexture, mKinect->depthChannel);
+    updateTexture(mColorTexture, mKinect->colorSurface);
 }
 
 void PointCloudGl::draw()
 {
     gl::clear(Color(0.0f, 0.0f, 0.0f), true);
 
-    {
-        gl::ScopedMatrices pushMatrix;
-        gl::setMatrices(mCam);
-        gl::ScopedViewport view(vec2(0), getWindowSize());
+    am::glslProg("texture")->bind();
 
-        {
-            gl::ScopedModelMatrix pushModel;
-            gl::rotate(mSceneRotation);
-            gl::ScopedTextureBind depthTex(mDepthTexture, 0);
-            mPointCloud->draw();
-        }
+    gl::setMatrices(mCam);
+
+    gl::ScopedTextureBind tb(mColorTexture, 0);
+
+    gl::VertBatch pointCloud(GL_POINTS);
+
+    auto count = mKinect->pointCloudXYZ.size();
+    for (int i = 0; i < count;i++) {
+        pointCloud.texCoord(mKinect->pointCloudUV[i]);
+        pointCloud.vertex(mKinect->pointCloudXYZ[i]);
     }
+    pointCloud.draw();
 
     mParams->draw();
 }
