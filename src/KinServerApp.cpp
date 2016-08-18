@@ -30,6 +30,27 @@ using namespace ci;
 using namespace ci::app;
 using namespace std;
 
+gl::VertBatchRef createGrid()
+{
+    auto grid = gl::VertBatch::create(GL_LINES);
+    grid->begin(GL_LINES);
+    float scale = 0.1f;
+    for (int i = -10; i <= 10; ++i) {
+        grid->color(Color(0.25f, 0.25f, 0.25f));
+        grid->color(Color(0.25f, 0.25f, 0.25f));
+        grid->color(Color(0.25f, 0.25f, 0.25f));
+        grid->color(Color(0.25f, 0.25f, 0.25f));
+
+        grid->vertex(float(i)*scale, 0.0f, -10.0f*scale);
+        grid->vertex(float(i)*scale, 0.0f, +10.0f*scale);
+        grid->vertex(-10.0f*scale, 0.0f, float(i)*scale);
+        grid->vertex(+10.0f*scale, 0.0f, float(i)*scale);
+    }
+    grid->end();
+
+    return grid;
+}
+
 class PointCloudGl : public App {
 public:
 
@@ -46,14 +67,17 @@ public:
     CameraPersp         mCam;
     CameraUi            mCamUi;
 
-
     // KINECT AND TEXTURES
-    Kinect::DeviceRef		mKinect;
+    ds::DeviceRef		mDevice;
     gl::TextureRef  mDepthTexture;
     gl::TextureRef  mColorTexture;
 
     // BATCH AND SHADER
+    gl::VertBatch pointCloud;
+
     gl::GlslProgRef	mPointCloudShader;
+
+    gl::VertBatchRef grid;
 };
 
 
@@ -61,24 +85,45 @@ PointCloudGl::PointCloudGl()
 {
     readConfig();
 
+    mCam.setEyePoint({2, 2, 2});
+    mCam.lookAt({ 0, 0, 0 });
     mCamUi = CameraUi(&mCam, getWindow(), -1);
 
     // SETUP PARAMS
-    mParams = params::InterfaceGl::create("KinectPointCloud", vec2(200, 180));
+    mParams = createConfigUI({ 200, 180 });
 
     // SETUP KINECT AND TEXTURES
-    Kinect::DeviceType type = Kinect::DeviceType(SENSOR_TYPE);
-    Kinect::Device::Option option;
+    ds::DeviceType type = ds::DeviceType(SENSOR_TYPE);
+    ds::Option option;
     option.enableColor = true;
     option.enablePointCloud = true;
-    mKinect = Kinect::Device::create(type, option);
-    if (!mKinect->isValid())
+    mDevice = ds::Device::create(type, option);
+    if (!mDevice->isValid())
     {
         quit();
         return;
     }
-    //mDepthTexture = gl::Texture::create(mKinect->getDepthSize().x, mKinect->getDepthSize().y,
-    //    gl::Texture::Format().internalFormat(GL_R16UI).dataType(GL_UNSIGNED_SHORT).minFilter(GL_NEAREST).magFilter(GL_NEAREST));
+
+    mDevice->signalDepthDirty.connect([&]{
+        updateTexture(mDepthTexture, mDevice->depthChannel);
+
+        pointCloud.clear();
+        auto count = mDevice->pointCloudXYZ.size();
+        for (int i = 0; i < count; i++) {
+            pointCloud.texCoord(mDevice->pointCloudUV[i]);
+            pointCloud.vertex(mDevice->pointCloudXYZ[i]);
+        }
+    });
+    mDevice->signalColorDirty.connect([&]{
+        updateTexture(mColorTexture, mDevice->colorSurface);
+    });
+
+#if 0
+    mDepthTexture = gl::Texture::create(mDevice->getDepthSize().x, mDevice->getDepthSize().y,
+        gl::Texture::Format().internalFormat(GL_R16UI).dataType(GL_UNSIGNED_SHORT).minFilter(GL_NEAREST).magFilter(GL_NEAREST));
+    mColorTexture = gl::Texture::create(mDevice->getDepthSize().x, mDevice->getDepthSize().y,
+        gl::Texture::Format().internalFormat(GL_RGB8).dataType(GL_UNSIGNED_BYTE).wrap(GL_CLAMP_TO_EDGE));
+#endif
 
     // SETUP VBO AND SHADER
 
@@ -91,7 +136,9 @@ PointCloudGl::PointCloudGl()
 
     auto mesh = createVboMesh();
     mPointCloudShader->uniform("uDepthTexture", 0);
-    mPointCloudShader->uniform("uDepthToMmScale", mKinect->getDepthToMmScale());
+    mPointCloudShader->uniform("uDepthToMmScale", mDevice->getDepthToMmScale());
+
+    grid = createGrid();
 
     // SETUP GL
     gl::enableDepthWrite();
@@ -132,28 +179,30 @@ gl::VboMeshRef PointCloudGl::createVboMesh()
 
 void PointCloudGl::update()
 {
-    updateTexture(mDepthTexture, mKinect->depthChannel);
-    updateTexture(mColorTexture, mKinect->colorSurface);
+    FPS = getAverageFps();
 }
 
 void PointCloudGl::draw()
 {
     gl::clear(Color(0.0f, 0.0f, 0.0f), true);
-
-    am::glslProg("texture")->bind();
-
     gl::setMatrices(mCam);
 
-    gl::ScopedTextureBind tb(mColorTexture, 0);
-
-    gl::VertBatch pointCloud(GL_POINTS);
-
-    auto count = mKinect->pointCloudXYZ.size();
-    for (int i = 0; i < count;i++) {
-        pointCloud.texCoord(mKinect->pointCloudUV[i]);
-        pointCloud.vertex(mKinect->pointCloudXYZ[i]);
+    if (COORDINATE_VISIBLE)
+    {
+        gl::ScopedDepthWrite depthWrite(false);
+        gl::ScopedGlslProg glsl(am::glslProg("color"));
+        grid->draw();
+        gl::drawCoordinateFrame(1, 0.1, 0.01);
     }
-    pointCloud.draw();
+
+    {
+        gl::ScopedGlslProg glsl(am::glslProg("texture"));
+        gl::ScopedTextureBind tb(mColorTexture, 0);
+        gl::ScopedModelMatrix model;
+        gl::scale({ SCALE, SCALE, SCALE });
+
+        pointCloud.draw();
+    }
 
     mParams->draw();
 }
