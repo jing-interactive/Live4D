@@ -1,17 +1,20 @@
-#version 150
+#version 150 core
 
-in float vDepthColor;
+uniform sampler2D	uTextureColor;
+uniform sampler2D	uTextureDepthToColorTable;
 
-out vec4 FragColor;
+in float			vDepth;
+in vec2				vTexCoord0;
 
-void main()
+out vec4			gl_FragColor;
+
+void main( void )
 {
-	//if( vDepth < 0.1 ) discard;
-	FragColor.rgb	= vec3( vDepthColor );
-	FragColor.a		= 1.0;
+	if ( vDepth <= 0.0 || vDepth >= 4096.0 ) {
+		discard;
+	}
+	vec2 uv			= texture( uTextureDepthToColorTable, vTexCoord0 ).rg;
+
+	gl_FragColor	= texture( uTextureColor, uv );
 }
-
-
-
-
-
+ 

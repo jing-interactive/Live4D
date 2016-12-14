@@ -6,22 +6,16 @@
 #include "cinder/PolyLine.h"
 #include "cinder/CameraUi.h"
 
-#include "Cinder/osc/Osc.h"
-#include "CinderOpenCV.h"
-
-#include "DepthSensor.h"
-#include "Cinder-VNM/include/MiniConfig.h"
+#include "Cinder-DepthSensor/include/DepthSensor.h"
+#include "Cinder-VNM/include/MiniConfigImgui.h"
 #include "Cinder-VNM/include/TextureHelper.h"
 #include "Cinder-VNM/include/AssetManager.h"
 
 #include <vector>
 
-#pragma comment (lib, "OpenNI2.lib")
-
 using namespace std;
 using namespace ci;
 using namespace ci::app;
-using namespace cv;
 
 static const int VBO_X_RES = 640;
 static const int VBO_Y_RES = 480;
@@ -35,7 +29,8 @@ gl::VertBatchRef createGrid()
     auto grid = gl::VertBatch::create(GL_LINES);
     grid->begin(GL_LINES);
     float scale = 0.1f;
-    for (int i = -10; i <= 10; ++i) {
+    for (int i = -10; i <= 10; ++i)
+    {
         grid->color(Color(0.25f, 0.25f, 0.25f));
         grid->color(Color(0.25f, 0.25f, 0.25f));
         grid->color(Color(0.25f, 0.25f, 0.25f));
@@ -51,17 +46,14 @@ gl::VertBatchRef createGrid()
     return grid;
 }
 
-class PointCloudGl : public App {
+class Live4D : public App {
 public:
 
-    PointCloudGl();
+    Live4D();
     void           update()override;
     void           draw()override;
 
     gl::VboMeshRef createVboMesh();
-
-    // PARAMS
-    params::InterfaceGlRef	mParams;
 
     // CAMERA
     CameraPersp         mCam;
@@ -71,9 +63,12 @@ public:
     ds::DeviceRef		mDevice;
     gl::TextureRef  mDepthTexture;
     gl::TextureRef  mColorTexture;
+    gl::TextureRef  mDepthToCameraTableTexture;
+    gl::TextureRef  mDepthToColorTableTexture;
 
     // BATCH AND SHADER
     gl::VertBatch pointCloud;
+    gl::VboMeshRef mVboMesh;
 
     gl::GlslProgRef	mPointCloudShader;
 
@@ -81,7 +76,7 @@ public:
 };
 
 
-PointCloudGl::PointCloudGl()
+Live4D::Live4D()
 {
     readConfig();
 
@@ -90,10 +85,10 @@ PointCloudGl::PointCloudGl()
     mCamUi = CameraUi(&mCam, getWindow(), -1);
 
     // SETUP PARAMS
-    mParams = createConfigUI({ 200, 180 });
+    createConfigImgui();
 
     // SETUP KINECT AND TEXTURES
-    ds::DeviceType type = ds::DeviceType(SENSOR_TYPE);
+    ds::DeviceType type = ds::DeviceType(_SENSOR_TYPE);
     ds::Option option;
     option.enableColor = true;
     option.enablePointCloud = true;
@@ -104,15 +99,11 @@ PointCloudGl::PointCloudGl()
         return;
     }
 
+    mDevice->signaldepthToCameraTableDirty.connect([&]{
+        updateTexture(mDepthToCameraTableTexture, mDevice->depthToCameraTable);
+    });
     mDevice->signalDepthDirty.connect([&]{
         updateTexture(mDepthTexture, mDevice->depthChannel);
-
-        pointCloud.clear();
-        auto count = mDevice->pointCloudXYZ.size();
-        for (int i = 0; i < count; i++) {
-            pointCloud.texCoord(mDevice->pointCloudUV[i]);
-            pointCloud.vertex(mDevice->pointCloudXYZ[i]);
-        }
     });
     mDevice->signalColorDirty.connect([&]{
         updateTexture(mColorTexture, mDevice->colorSurface);
@@ -126,63 +117,47 @@ PointCloudGl::PointCloudGl()
 #endif
 
     // SETUP VBO AND SHADER
-
-    try {
-        mPointCloudShader = gl::GlslProg::create(loadAsset("pointcloud.vert"), loadAsset("pointcloud.frag"));
-    }
-    catch (const gl::GlslProgCompileExc &e) {
-        console() << e.what() << endl;
-    }
-
-    auto mesh = createVboMesh();
-    mPointCloudShader->uniform("uDepthTexture", 0);
-    mPointCloudShader->uniform("uDepthToMmScale", mDevice->getDepthToMmScale());
-
     grid = createGrid();
+    mVboMesh = createVboMesh();
+
+    mPointCloudShader = am::glslProg("pointcloud.vert", "pointcloud.frag");
+    mPointCloudShader->uniform("uTextureDepth", 0);
+    mPointCloudShader->uniform("uTextureColor", 1);
+    mPointCloudShader->uniform("uTextureDepthToCameraTable", 2);
+    mPointCloudShader->uniform("uTextureDepthToColorTable", 3);
 
     // SETUP GL
     gl::enableDepthWrite();
     gl::enableDepthRead();
 }
 
-gl::VboMeshRef PointCloudGl::createVboMesh()
+gl::VboMeshRef Live4D::createVboMesh()
 {
-    vector<float> data;
-
-    int numVertices = VBO_X_RES * VBO_Y_RES;
-
-    for (int x = 0; x<VBO_X_RES; ++x){
-        for (int y = 0; y<VBO_Y_RES; ++y){
-
-            float xPer = x / (float)(VBO_X_RES - 1);
-            float yPer = y / (float)(VBO_Y_RES - 1);
-
-            data.push_back(x);
-            data.push_back(y);
-            data.push_back(0);
-            data.push_back(xPer);
-            data.push_back(yPer);
-
+    ivec2 sz = mDevice->getDepthSize();
+    vector<vec2> vertices;
+    for (int32_t x = 0; x < sz.x; ++x) {
+        for (int32_t y = 0; y < sz.y; ++y) {
+            vertices.push_back(vec2(x, y) / vec2(sz));
         }
     }
 
-    geom::BufferLayout data_layout;
-    data_layout.append(geom::POSITION, 3, sizeof(float) * 5, 0);
-    data_layout.append(geom::TEX_COORD_0, 2, sizeof(float) * 5, sizeof(float) * 3);
+    gl::VboRef vbo = gl::Vbo::create(GL_ARRAY_BUFFER, vertices.size() * sizeof(vec2), &vertices[0], GL_STATIC_DRAW);
 
-    auto data_buffer = gl::Vbo::create(GL_ARRAY_BUFFER, sizeof(float)*data.size(), data.data(), GL_STATIC_DRAW);
+    geom::BufferLayout layout;
+    layout.append(geom::Attrib::POSITION, 2, sizeof(vec2), 0);
+    auto vertexArrayBuffers = { make_pair(layout, vbo) };
 
-    vector<pair<geom::BufferLayout, gl::VboRef>> layouts(1, make_pair(data_layout, data_buffer));
-
-    return gl::VboMesh::create(numVertices, GL_POINTS, layouts);
+    return gl::VboMesh::create(vertices.size(), GL_POINTS, vertexArrayBuffers);
 }
 
-void PointCloudGl::update()
+void Live4D::update()
 {
-    FPS = getAverageFps();
+    _FPS = getAverageFps();
+
+    if (mDepthToCameraTableTexture) ui::Image(mDepthToCameraTableTexture, mDepthToCameraTableTexture->getSize());
 }
 
-void PointCloudGl::draw()
+void Live4D::draw()
 {
     gl::clear(Color(0.0f, 0.0f, 0.0f), true);
     gl::setMatrices(mCam);
@@ -195,16 +170,20 @@ void PointCloudGl::draw()
         gl::drawCoordinateFrame(1, 0.1, 0.01);
     }
 
+    if (mDepthTexture && mColorTexture)
     {
-        gl::ScopedGlslProg glsl(am::glslProg("texture"));
-        gl::ScopedTextureBind tb(mColorTexture, 0);
+        gl::ScopedGlslProg glsl(mPointCloudShader);
+        gl::ScopedTextureBind t0(mDepthTexture, 0);
+        gl::ScopedTextureBind t1(mColorTexture, 1);
+        gl::ScopedTextureBind t2(mDepthToCameraTableTexture, 2);
+        //gl::ScopedTextureBind t3(mDepthToColorTableTexture, 3);
         gl::ScopedModelMatrix model;
         gl::scale({ SCALE, SCALE, SCALE });
 
+        gl::draw(mVboMesh);
+
         pointCloud.draw();
     }
-
-    mParams->draw();
 }
 
 void prepareSettings(App::Settings* settings)
@@ -212,4 +191,4 @@ void prepareSettings(App::Settings* settings)
     settings->setWindowSize(1280, 720);
 }
 
-CINDER_APP(PointCloudGl, RendererGl, prepareSettings)
+CINDER_APP(Live4D, RendererGl, prepareSettings)
