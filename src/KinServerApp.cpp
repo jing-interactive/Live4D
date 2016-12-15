@@ -11,6 +11,8 @@
 #include "Cinder-VNM/include/TextureHelper.h"
 #include "Cinder-VNM/include/AssetManager.h"
 
+#include "RenderdocManager/include/RenderDocManager.h"
+
 #include <vector>
 
 using namespace std;
@@ -73,6 +75,8 @@ public:
     gl::GlslProgRef	mPointCloudShader;
 
     gl::VertBatchRef grid;
+
+	RenderDocManager renderdoc;
 };
 
 
@@ -98,6 +102,8 @@ Live4D::Live4D()
         quit();
         return;
     }
+
+	renderdoc.setup(getAssetPath("").string().c_str());
 
     mDevice->signaldepthToCameraTableDirty.connect([&]{
         updateTexture(mDepthToCameraTableTexture, mDevice->depthToCameraTable);
