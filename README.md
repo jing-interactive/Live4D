@@ -1,12 +1,11 @@
 Live4D
 =========
 
-Point cloud streaming system for Kinect V1 / V2 devices and Intel RealSense devices.
+Point cloud streaming system for devices supported by Cinder-DepthSensor.
 
 To build this project, you need:
 
 * [Cinder](https://github.com/cinder/Cinder)
-* [Cinder-OpenCV3](https://github.com/cinder/Cinder-OpenCV3)
 * [Cinder-DepthSensor](https://github.com/vnm-interactive/Cinder-DepthSensor)
 * [Cinder-VNM](https://github.com/vnm-interactive/Cinder-VNM)  
 
