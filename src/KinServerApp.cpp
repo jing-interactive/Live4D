@@ -106,13 +106,34 @@ Live4D::Live4D()
 	renderdoc.setup(getAssetPath("").string().c_str());
 
     mDevice->signaldepthToCameraTableDirty.connect([&]{
-        updateTexture(mDepthToCameraTableTexture, mDevice->depthToCameraTable);
+        auto format = gl::Texture::Format()
+            .immutableStorage()
+            .loadTopDown();
+        updateTexture(mDepthToCameraTableTexture, mDevice->depthToCameraTable, format);
     });
+
+    mDevice->signalDepthToColorTableDirty.connect([&]{
+        auto format = gl::Texture::Format()
+            .dataType(GL_FLOAT)
+            .immutableStorage()
+            .loadTopDown();
+        updateTexture(mDepthToColorTableTexture, mDevice->depthToColorTable, format);
+    });
+
     mDevice->signalDepthDirty.connect([&]{
-        updateTexture(mDepthTexture, mDevice->depthChannel);
+        static auto format = gl::Texture::Format()
+            .dataType(GL_UNSIGNED_SHORT)
+            .internalFormat(GL_R16UI)
+            .immutableStorage()
+            .loadTopDown();
+        updateTexture(mDepthTexture, mDevice->depthChannel, format);
     });
+
     mDevice->signalColorDirty.connect([&]{
-        updateTexture(mColorTexture, mDevice->colorSurface);
+        auto format = gl::Texture::Format()
+            .immutableStorage()
+            .loadTopDown();
+        updateTexture(mColorTexture, mDevice->colorSurface, format);
     });
 
 #if 0
@@ -160,7 +181,10 @@ void Live4D::update()
 {
     _FPS = getAverageFps();
 
-    if (mDepthToCameraTableTexture) ui::Image(mDepthToCameraTableTexture, mDepthToCameraTableTexture->getSize());
+    if (mDepthToColorTableTexture) ui::Image(mDepthToColorTableTexture, mDepthToColorTableTexture->getSize());
+
+    mPointCloudShader->uniform("uMinDistance", MIN_DISTANCE_MM);
+    mPointCloudShader->uniform("uMaxDistance", MAX_DISTANCE_MM);
 }
 
 void Live4D::draw()
@@ -182,7 +206,7 @@ void Live4D::draw()
         gl::ScopedTextureBind t0(mDepthTexture, 0);
         gl::ScopedTextureBind t1(mColorTexture, 1);
         gl::ScopedTextureBind t2(mDepthToCameraTableTexture, 2);
-        //gl::ScopedTextureBind t3(mDepthToColorTableTexture, 3);
+        gl::ScopedTextureBind t3(mDepthToColorTableTexture, 3);
         gl::ScopedModelMatrix model;
         gl::scale({ SCALE, SCALE, SCALE });
 

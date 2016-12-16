@@ -14,7 +14,7 @@ void main( void )
 	vTexCoord0	= ciPosition;
 
 	vec2 uv		= vTexCoord0;
-	uv.t		= 1.0 - uv.t;
+	uv.t		= uv.t;
 
 	vDepth		= texture( uTextureDepth, uv ).r;
 	vec3 pos	= vec3( texture( uTextureDepthToCameraTable, vTexCoord0 ).rg * vDepth, vDepth );
