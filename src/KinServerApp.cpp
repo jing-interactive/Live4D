@@ -55,7 +55,7 @@ public:
     void           update()override;
     void           draw()override;
 
-    gl::VboMeshRef createVboMesh();
+    gl::VboMeshRef createVboMesh(bool isPointCloud);
 
     // CAMERA
     CameraPersp         mCam;
@@ -145,7 +145,7 @@ Live4D::Live4D()
 
     // SETUP VBO AND SHADER
     grid = createGrid();
-    mVboMesh = createVboMesh();
+    mVboMesh = createVboMesh(false);
 
     mPointCloudShader = am::glslProg("pointcloud.vert", "pointcloud.frag");
     mPointCloudShader->uniform("uTextureDepth", 0);
@@ -158,23 +158,54 @@ Live4D::Live4D()
     gl::enableDepthRead();
 }
 
-gl::VboMeshRef Live4D::createVboMesh()
+gl::VboMeshRef Live4D::createVboMesh(bool isPointCloud)
 {
-    ivec2 sz = mDevice->getDepthSize();
+    vec2 sz = mDevice->getDepthSize();
     vector<vec2> vertices;
-    for (int32_t x = 0; x < sz.x; ++x) {
-        for (int32_t y = 0; y < sz.y; ++y) {
-            vertices.push_back(vec2(x, y) / vec2(sz));
+    for (int32_t x = 0; x < sz.x; ++x)
+    {
+        for (int32_t y = 0; y < sz.y; ++y)
+        {
+            vertices.push_back(vec2(x, y) / sz);
         }
     }
 
-    gl::VboRef vbo = gl::Vbo::create(GL_ARRAY_BUFFER, vertices.size() * sizeof(vec2), &vertices[0], GL_STATIC_DRAW);
+    gl::VboRef vbo = gl::Vbo::create(GL_ARRAY_BUFFER, vertices, GL_STATIC_DRAW);
 
     geom::BufferLayout layout;
     layout.append(geom::Attrib::POSITION, 2, sizeof(vec2), 0);
     auto vertexArrayBuffers = { make_pair(layout, vbo) };
 
-    return gl::VboMesh::create(vertices.size(), GL_POINTS, vertexArrayBuffers);
+    if (isPointCloud)
+    {
+        return gl::VboMesh::create(vertices.size(), GL_POINTS, vertexArrayBuffers);
+    }
+    else
+    {
+        int I = sz.x - 1;
+        int J = sz.y - 1;
+        vector<uint16_t> indices;
+        for (int i = 0; i < I; i++)
+            for (int j = 0; j < J; j++)
+            {
+                int idx_00 = (i + 0) + (j + 0) * sz.x;
+                int idx_10 = (i + 1) + (j + 0) * sz.x;
+                int idx_01 = (i + 0) + (j + 1) * sz.x;
+                int idx_11 = (i + 1) + (j + 1) * sz.x;
+                indices.emplace_back(idx_00);
+                indices.emplace_back(idx_10);
+                indices.emplace_back(idx_11);
+
+                indices.emplace_back(idx_00);
+                indices.emplace_back(idx_11);
+                indices.emplace_back(idx_01);
+            }
+
+        gl::VboRef indexVbo = gl::Vbo::create(GL_ELEMENT_ARRAY_BUFFER, indices, GL_STATIC_DRAW);
+
+        return gl::VboMesh::create(vertices.size(), GL_TRIANGLES, vertexArrayBuffers, 
+                                    indices.size(), GL_UNSIGNED_SHORT, indexVbo);
+    }
 }
 
 void Live4D::update()
