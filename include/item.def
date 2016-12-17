@@ -1,5 +1,5 @@
 GROUP_DEF(Config)
-ITEM_DEF(int, _SENSOR_TYPE, 1)
+ITEM_DEF(int, _SENSOR_TYPE, 2)
 ITEM_DEF(float, _FPS, 0)
 ITEM_DEF(bool, COORDINATE_VISIBLE, true)
 ITEM_DEF(float, SCALE, 1)

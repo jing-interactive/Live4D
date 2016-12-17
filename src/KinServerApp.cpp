@@ -105,7 +105,7 @@ Live4D::Live4D()
 
 	renderdoc.setup(getAssetPath("").string().c_str());
 
-    mDevice->signaldepthToCameraTableDirty.connect([&]{
+    mDevice->signalDepthToCameraTableDirty.connect([&]{
         auto format = gl::Texture::Format()
             .immutableStorage()
             .loadTopDown();
@@ -176,43 +176,46 @@ gl::VboMeshRef Live4D::createVboMesh(bool isPointCloud)
     layout.append(geom::Attrib::POSITION, 2, sizeof(vec2), 0);
     auto vertexArrayBuffers = { make_pair(layout, vbo) };
 
-    if (isPointCloud)
-    {
-        return gl::VboMesh::create(vertices.size(), GL_POINTS, vertexArrayBuffers);
-    }
-    else
-    {
-        int I = sz.x - 1;
-        int J = sz.y - 1;
-        vector<uint16_t> indices;
-        for (int i = 0; i < I; i++)
-            for (int j = 0; j < J; j++)
-            {
-                int idx_00 = (i + 0) + (j + 0) * sz.x;
-                int idx_10 = (i + 1) + (j + 0) * sz.x;
-                int idx_01 = (i + 0) + (j + 1) * sz.x;
-                int idx_11 = (i + 1) + (j + 1) * sz.x;
-                indices.emplace_back(idx_00);
-                indices.emplace_back(idx_10);
-                indices.emplace_back(idx_11);
+    int spc = 1;
+    int I = sz.x - spc;
+    int J = sz.y - spc;
+    vector<uint32_t> indices;
+    for (int i = 0; i < I - spc; i += spc)
+        for (int j = 0; j < J - spc; j += spc)
+        {
+            int idx_00 = (i + 0) + (j + 0) * sz.x;
+            int idx_10 = (i + spc) + (j + 0) * sz.x;
+            int idx_01 = (i + 0) + (j + spc) * sz.x;
+            int idx_11 = (i + spc) + (j + spc) * sz.x;
+            indices.emplace_back(idx_00);
+            indices.emplace_back(idx_10);
+            indices.emplace_back(idx_11);
 
-                indices.emplace_back(idx_00);
-                indices.emplace_back(idx_11);
-                indices.emplace_back(idx_01);
-            }
+            indices.emplace_back(idx_00);
+            indices.emplace_back(idx_11);
+            indices.emplace_back(idx_01);
+        }
 
-        gl::VboRef indexVbo = gl::Vbo::create(GL_ELEMENT_ARRAY_BUFFER, indices, GL_STATIC_DRAW);
+    gl::VboRef indexVbo = gl::Vbo::create(GL_ELEMENT_ARRAY_BUFFER, indices, GL_STATIC_DRAW);
 
-        return gl::VboMesh::create(vertices.size(), GL_TRIANGLES, vertexArrayBuffers, 
-                                    indices.size(), GL_UNSIGNED_SHORT, indexVbo);
-    }
+    return gl::VboMesh::create(vertices.size(), isPointCloud ? GL_POINTS : GL_TRIANGLES, vertexArrayBuffers,
+        indices.size(), GL_UNSIGNED_INT, indexVbo);
 }
 
 void Live4D::update()
 {
     _FPS = getAverageFps();
 
+    static bool isPointCloud = false;
+    if (ui::Checkbox("point cloud", &isPointCloud))
+    {
+        mVboMesh = createVboMesh(isPointCloud);
+    }
+
+    if (mDepthTexture) ui::Image(mDepthTexture, mDepthTexture->getSize());
+    if (mColorTexture) ui::Image(mColorTexture, mColorTexture->getSize());
     if (mDepthToColorTableTexture) ui::Image(mDepthToColorTableTexture, mDepthToColorTableTexture->getSize());
+    if (mDepthToCameraTableTexture) ui::Image(mDepthToCameraTableTexture, mDepthToCameraTableTexture->getSize());
 
     mPointCloudShader->uniform("uMinDistance", MIN_DISTANCE_MM);
     mPointCloudShader->uniform("uMaxDistance", MAX_DISTANCE_MM);

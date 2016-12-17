@@ -3,6 +3,8 @@
 uniform mat4		ciModelViewProjection;
 uniform usampler2D	uTextureDepth;
 uniform sampler2D	uTextureDepthToCameraTable;
+uniform float uMinDistance;
+uniform float uMaxDistance;
 
 in vec2				ciPosition;
 
@@ -20,5 +22,8 @@ void main( void )
 	vec3 pos	= vec3( texture( uTextureDepthToCameraTable, vTexCoord0 ).rg * vDepth, vDepth );
 
 	gl_Position = ciModelViewProjection * vec4( pos * 0.1, 1.0 );
+
+	if ( vDepth <= uMinDistance || vDepth >= uMaxDistance )
+		gl_Position.w = 0;
 };
  
