@@ -77,6 +77,7 @@ public:
     gl::VertBatchRef grid;
 
 	RenderDocManager renderdoc;
+    bool isPointCloud = true;
 };
 
 
@@ -145,7 +146,7 @@ Live4D::Live4D()
 
     // SETUP VBO AND SHADER
     grid = createGrid();
-    mVboMesh = createVboMesh(false);
+    mVboMesh = createVboMesh(isPointCloud);
 
     mPointCloudShader = am::glslProg("pointcloud.vert", "pointcloud.frag");
     mPointCloudShader->uniform("uTextureDepth", 0);
@@ -206,7 +207,6 @@ void Live4D::update()
 {
     _FPS = getAverageFps();
 
-    static bool isPointCloud = false;
     if (ui::Checkbox("point cloud", &isPointCloud))
     {
         mVboMesh = createVboMesh(isPointCloud);
@@ -217,8 +217,11 @@ void Live4D::update()
     if (mDepthToColorTableTexture) ui::Image(mDepthToColorTableTexture, mDepthToColorTableTexture->getSize());
     if (mDepthToCameraTableTexture) ui::Image(mDepthToCameraTableTexture, mDepthToCameraTableTexture->getSize());
 
+    // TODO: use UBO
     mPointCloudShader->uniform("uMinDistance", MIN_DISTANCE_MM);
     mPointCloudShader->uniform("uMaxDistance", MAX_DISTANCE_MM);
+    mPointCloudShader->uniform("uFlipX", FLIP_X);
+    mPointCloudShader->uniform("uFlipY", FLIP_Y);
 }
 
 void Live4D::draw()

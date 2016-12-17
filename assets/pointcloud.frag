@@ -2,6 +2,8 @@
 
 uniform sampler2D	uTextureColor;
 uniform sampler2D	uTextureDepthToColorTable;
+uniform bool		uFlipX;
+uniform bool		uFlipY;
 
 in float			vDepth;
 in vec2				vTexCoord0;
