@@ -22,7 +22,10 @@
     <Filter Include="Blocks\imgui">
       <UniqueIdentifier>{8e5e1d14-38a8-4e44-916e-77ea12226a76}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Blocks\imgui\lib">
+    <Filter Include="Blocks\imgui\ImGuizmo">
+      <UniqueIdentifier>{e4f6611d-63cd-4326-a875-cd36f5f2bdf7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Blocks\imgui\imgui">
       <UniqueIdentifier>{0179a3cc-f5d3-44a9-9c4a-5ed64a881b88}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
@@ -43,13 +46,16 @@
       <Filter>Blocks\imgui</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Cinder\blocks\Cinder-ImGui\lib\imgui\imgui.cpp">
-      <Filter>Blocks\imgui\lib</Filter>
+      <Filter>Blocks\imgui\imgui</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Cinder\blocks\Cinder-ImGui\lib\imgui\imgui_demo.cpp">
-      <Filter>Blocks\imgui\lib</Filter>
+      <Filter>Blocks\imgui\imgui</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Cinder\blocks\Cinder-ImGui\lib\imgui\imgui_draw.cpp">
-      <Filter>Blocks\imgui\lib</Filter>
+      <Filter>Blocks\imgui\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Cinder\blocks\Cinder-ImGui\lib\ImGuizmo\ImGuizmo.cpp">
+      <Filter>Blocks\imgui\ImGuizmo</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -69,22 +75,25 @@
       <Filter>Blocks\imgui</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Cinder\blocks\Cinder-ImGui\lib\imgui\imconfig.h">
-      <Filter>Blocks\imgui\lib</Filter>
+      <Filter>Blocks\imgui\imgui</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Cinder\blocks\Cinder-ImGui\lib\imgui\imgui.h">
-      <Filter>Blocks\imgui\lib</Filter>
+      <Filter>Blocks\imgui\imgui</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Cinder\blocks\Cinder-ImGui\lib\imgui\imgui_internal.h">
-      <Filter>Blocks\imgui\lib</Filter>
+      <Filter>Blocks\imgui\imgui</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Cinder\blocks\Cinder-ImGui\lib\imgui\stb_rect_pack.h">
-      <Filter>Blocks\imgui\lib</Filter>
+      <Filter>Blocks\imgui\imgui</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Cinder\blocks\Cinder-ImGui\lib\imgui\stb_textedit.h">
-      <Filter>Blocks\imgui\lib</Filter>
+      <Filter>Blocks\imgui\imgui</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Cinder\blocks\Cinder-ImGui\lib\imgui\stb_truetype.h">
-      <Filter>Blocks\imgui\lib</Filter>
+      <Filter>Blocks\imgui\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Cinder\blocks\Cinder-ImGui\lib\ImGuizmo\ImGuizmo.h">
+      <Filter>Blocks\imgui\ImGuizmo</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -104,10 +113,10 @@
     </None>
     <None Include="..\README.md" />
     <None Include="..\..\Cinder\blocks\Cinder-ImGui\lib\imgui\LICENSE">
-      <Filter>Blocks\imgui\lib</Filter>
+      <Filter>Blocks\imgui\imgui</Filter>
     </None>
     <None Include="..\..\Cinder\blocks\Cinder-ImGui\lib\imgui\README.md">
-      <Filter>Blocks\imgui\lib</Filter>
+      <Filter>Blocks\imgui\imgui</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

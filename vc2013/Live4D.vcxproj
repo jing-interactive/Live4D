@@ -125,6 +125,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Cinder\blocks\Cinder-ImGui\include\CinderImGui.h" />
+    <ClInclude Include="..\..\Cinder\blocks\Cinder-ImGui\lib\ImGuizmo\ImGuizmo.h" />
     <ClInclude Include="..\..\Cinder\blocks\Cinder-ImGui\lib\imgui\imconfig.h" />
     <ClInclude Include="..\..\Cinder\blocks\Cinder-ImGui\lib\imgui\imgui.h" />
     <ClInclude Include="..\..\Cinder\blocks\Cinder-ImGui\lib\imgui\imgui_internal.h" />
@@ -136,6 +137,7 @@
     <ClInclude Include="..\include\Resources.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\Cinder\blocks\Cinder-ImGui\lib\ImGuizmo\ImGuizmo.cpp" />
     <ClCompile Include="..\..\Cinder\blocks\Cinder-ImGui\lib\imgui\imgui.cpp" />
     <ClCompile Include="..\..\Cinder\blocks\Cinder-ImGui\lib\imgui\imgui_demo.cpp" />
     <ClCompile Include="..\..\Cinder\blocks\Cinder-ImGui\lib\imgui\imgui_draw.cpp" />
