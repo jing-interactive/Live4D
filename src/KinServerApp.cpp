@@ -57,17 +57,20 @@ public:
     struct DeviceInfo
     {
         ds::DeviceRef device;
-        gl::TextureRef  mDepthTexture;
-        gl::TextureRef  mColorTexture;
-        gl::TextureRef  mDepthToCameraTableTexture;
-        gl::TextureRef  mDepthToColorTableTexture;
+        bool isVisible = true;
+        bool showImage = false;
+        vec3 translation;
+        vec3 rotation;
+        gl::TextureRef  depthTexture;
+        gl::TextureRef  colorTexture;
+        gl::TextureRef  depthToCameraTableTexture;
+        gl::TextureRef  depthToColorTableTexture;
     };
+    vector<DeviceInfo> mDeviceInfos;
 
     gl::VboMeshRef mVboMesh;
 
-    gl::VboMeshRef createVboMesh(vec2 depthSize, bool isPointCloud);
-
-    vector<DeviceInfo> mDeviceInfos;
+    static gl::VboMeshRef createVboMesh(vec2 depthSize, bool isPointCloud);
 
     gl::GlslProgRef	mPointCloudShader;
 
@@ -80,6 +83,7 @@ public:
 Live4D::Live4D()
 {
     readConfig();
+    log::makeLogger<log::LoggerFile>();
 
     mCam.setEyePoint({2, 2, 2});
     mCam.lookAt({ 0, 0, 0 });
@@ -117,7 +121,7 @@ Live4D::Live4D()
             auto format = gl::Texture::Format()
                 .immutableStorage()
                 .loadTopDown();
-            updateTexture(info.mDepthToCameraTableTexture, info.device->depthToCameraTable, format);
+            updateTexture(info.depthToCameraTableTexture, info.device->depthToCameraTable, format);
         });
 
         info.device->signalDepthToColorTableDirty.connect([&]{
@@ -125,7 +129,7 @@ Live4D::Live4D()
                 .dataType(GL_FLOAT)
                 .immutableStorage()
                 .loadTopDown();
-            updateTexture(info.mDepthToColorTableTexture, info.device->depthToColorTable, format);
+            updateTexture(info.depthToColorTableTexture, info.device->depthToColorTable, format);
         });
 
         info.device->signalDepthDirty.connect([&]{
@@ -134,27 +138,26 @@ Live4D::Live4D()
                 .internalFormat(GL_R16UI)
                 .immutableStorage()
                 .loadTopDown();
-            updateTexture(info.mDepthTexture, info.device->depthChannel, format);
+            updateTexture(info.depthTexture, info.device->depthChannel, format);
 
             if (mVboMesh == nullptr)
             {
                 mVboMesh = createVboMesh(info.device->getDepthSize(), isPointCloud);
             }
-
         });
 
         info.device->signalColorDirty.connect([&]{
             auto format = gl::Texture::Format()
                 .immutableStorage()
                 .loadTopDown();
-            updateTexture(info.mColorTexture, info.device->colorSurface, format);
+            updateTexture(info.colorTexture, info.device->colorSurface, format);
         });
     }
 
 #if 0
-    mDepthTexture = gl::Texture::create(info.device->getDepthSize().x, info.device->getDepthSize().y,
+    depthTexture = gl::Texture::create(info.device->getDepthSize().x, info.device->getDepthSize().y,
         gl::Texture::Format().internalFormat(GL_R16UI).dataType(GL_UNSIGNED_SHORT).minFilter(GL_NEAREST).magFilter(GL_NEAREST));
-    mColorTexture = gl::Texture::create(info.device->getDepthSize().x, info.device->getDepthSize().y,
+    colorTexture = gl::Texture::create(info.device->getDepthSize().x, info.device->getDepthSize().y,
         gl::Texture::Format().internalFormat(GL_RGB8).dataType(GL_UNSIGNED_BYTE).wrap(GL_CLAMP_TO_EDGE));
 #endif
 
@@ -224,15 +227,26 @@ void Live4D::update()
     //    mVboMesh = createVboMesh(isPointCloud);
     //}
 
-    static bool showImages = false;
-    if (ui::Checkbox("Show images", &showImages))
+    for (auto& info : mDeviceInfos)
     {
-        for (const auto& info : mDeviceInfos)
+        char name[100];
+        sprintf(name, "device-%d", info.device->option.deviceId);
+        ui::ScopedWindow window(name);
+        ui::Checkbox("visible", &info.isVisible);
+        ui::DragFloat3("T", &info.translation.x, 0.01f);
+        ui::DragFloat3("R", &info.rotation.x, 0.01f);
+        if (ui::Button("Reset"))
         {
-            if (info.mDepthTexture) ui::Image(info.mDepthTexture, info.mDepthTexture->getSize());
-            if (info.mColorTexture) ui::Image(info.mColorTexture, info.mColorTexture->getSize());
-            if (info.mDepthToColorTableTexture) ui::Image(info.mDepthToColorTableTexture, info.mDepthToColorTableTexture->getSize());
-            if (info.mDepthToCameraTableTexture) ui::Image(info.mDepthToCameraTableTexture, info.mDepthToCameraTableTexture->getSize());
+            info.translation = {};
+            info.rotation = {};
+        }
+
+        if (false && ui::Checkbox("show images", &info.showImage))
+        {
+            if (info.depthTexture) ui::Image(info.depthTexture, info.depthTexture->getSize());
+            if (info.colorTexture) ui::Image(info.colorTexture, info.colorTexture->getSize());
+            if (info.depthToColorTableTexture) ui::Image(info.depthToColorTableTexture, info.depthToColorTableTexture->getSize());
+            if (info.depthToCameraTableTexture) ui::Image(info.depthToCameraTableTexture, info.depthToCameraTableTexture->getSize());
         }
     }
 
@@ -258,14 +272,15 @@ void Live4D::draw()
 
     for (auto& info : mDeviceInfos)
     {
-        gl::ScopedGlslProg glsl(mPointCloudShader);
-        if (info.mDepthTexture && info.mColorTexture)
+        if (info.isVisible && info.depthTexture && info.colorTexture)
         {
-            gl::ScopedTextureBind t0(info.mDepthTexture, 0);
-            gl::ScopedTextureBind t1(info.mColorTexture, 1);
-            gl::ScopedTextureBind t2(info.mDepthToCameraTableTexture, 2);
-            gl::ScopedTextureBind t3(info.mDepthToColorTableTexture, 3);
+            gl::ScopedGlslProg glsl(mPointCloudShader);
+            gl::ScopedTextureBind t0(info.depthTexture, 0);
+            gl::ScopedTextureBind t1(info.colorTexture, 1);
+            gl::ScopedTextureBind t2(info.depthToCameraTableTexture, 2);
+            gl::ScopedTextureBind t3(info.depthToColorTableTexture, 3);
             gl::ScopedModelMatrix model;
+            gl::translate(info.translation);
             gl::scale({ SCALE, SCALE, SCALE });
 
             gl::draw(mVboMesh);

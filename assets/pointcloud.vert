@@ -24,7 +24,7 @@ void main( void )
 	vDepth		= texture( uTextureDepth, uv ).r;
 	vec3 pos	= vec3( texture( uTextureDepthToCameraTable, vTexCoord0 ).rg * vDepth, vDepth );
 
-	gl_Position = ciModelViewProjection * vec4( pos * 0.1, 1.0 );
+	gl_Position = ciModelViewProjection * vec4( pos * 0.001, 1.0 );
 
 	if ( vDepth <= uMinDistance || vDepth >= uMaxDistance )
 		gl_Position.w = 0;
