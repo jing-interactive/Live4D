@@ -11,16 +11,11 @@
 #include "Cinder-VNM/include/TextureHelper.h"
 #include "Cinder-VNM/include/AssetManager.h"
 
-#include "RenderdocManager/include/RenderDocManager.h"
-
 #include <vector>
 
 using namespace std;
 using namespace ci;
 using namespace ci::app;
-
-static const int VBO_X_RES = 640;
-static const int VBO_Y_RES = 480;
 
 using namespace ci;
 using namespace ci::app;
@@ -55,28 +50,29 @@ public:
     void           update()override;
     void           draw()override;
 
-    gl::VboMeshRef createVboMesh(bool isPointCloud);
-
     // CAMERA
     CameraPersp         mCam;
     CameraUi            mCamUi;
 
-    // KINECT AND TEXTURES
-    ds::DeviceRef		mDevice;
-    gl::TextureRef  mDepthTexture;
-    gl::TextureRef  mColorTexture;
-    gl::TextureRef  mDepthToCameraTableTexture;
-    gl::TextureRef  mDepthToColorTableTexture;
+    struct DeviceInfo
+    {
+        ds::DeviceRef device;
+        gl::TextureRef  mDepthTexture;
+        gl::TextureRef  mColorTexture;
+        gl::TextureRef  mDepthToCameraTableTexture;
+        gl::TextureRef  mDepthToColorTableTexture;
+    };
 
-    // BATCH AND SHADER
-    gl::VertBatch pointCloud;
     gl::VboMeshRef mVboMesh;
+
+    gl::VboMeshRef createVboMesh(vec2 depthSize, bool isPointCloud);
+
+    vector<DeviceInfo> mDeviceInfos;
 
     gl::GlslProgRef	mPointCloudShader;
 
     gl::VertBatchRef grid;
 
-	RenderDocManager renderdoc;
     bool isPointCloud = true;
 };
 
@@ -97,56 +93,73 @@ Live4D::Live4D()
     ds::Option option;
     option.enableColor = true;
     option.enablePointCloud = true;
-    mDevice = ds::Device::create(type, option);
-    if (!mDevice->isValid())
+
+    auto deviceCount = ds::Device::getDeviceCount(type);
+    if (deviceCount == 0)
     {
         quit();
         return;
     }
 
-	renderdoc.setup(getAssetPath("").string().c_str());
+    mDeviceInfos.resize(deviceCount);
+    int idx = 0;
+    for (auto& info : mDeviceInfos)
+    {
+        option.deviceId = idx++;
+        info.device = ds::Device::create(type, option);
+        if (!info.device->isValid())
+        {
+            quit();
+            return;
+        }
 
-    mDevice->signalDepthToCameraTableDirty.connect([&]{
-        auto format = gl::Texture::Format()
-            .immutableStorage()
-            .loadTopDown();
-        updateTexture(mDepthToCameraTableTexture, mDevice->depthToCameraTable, format);
-    });
+        info.device->signalDepthToCameraTableDirty.connect([&]{
+            auto format = gl::Texture::Format()
+                .immutableStorage()
+                .loadTopDown();
+            updateTexture(info.mDepthToCameraTableTexture, info.device->depthToCameraTable, format);
+        });
 
-    mDevice->signalDepthToColorTableDirty.connect([&]{
-        auto format = gl::Texture::Format()
-            .dataType(GL_FLOAT)
-            .immutableStorage()
-            .loadTopDown();
-        updateTexture(mDepthToColorTableTexture, mDevice->depthToColorTable, format);
-    });
+        info.device->signalDepthToColorTableDirty.connect([&]{
+            auto format = gl::Texture::Format()
+                .dataType(GL_FLOAT)
+                .immutableStorage()
+                .loadTopDown();
+            updateTexture(info.mDepthToColorTableTexture, info.device->depthToColorTable, format);
+        });
 
-    mDevice->signalDepthDirty.connect([&]{
-        static auto format = gl::Texture::Format()
-            .dataType(GL_UNSIGNED_SHORT)
-            .internalFormat(GL_R16UI)
-            .immutableStorage()
-            .loadTopDown();
-        updateTexture(mDepthTexture, mDevice->depthChannel, format);
-    });
+        info.device->signalDepthDirty.connect([&]{
+            static auto format = gl::Texture::Format()
+                .dataType(GL_UNSIGNED_SHORT)
+                .internalFormat(GL_R16UI)
+                .immutableStorage()
+                .loadTopDown();
+            updateTexture(info.mDepthTexture, info.device->depthChannel, format);
 
-    mDevice->signalColorDirty.connect([&]{
-        auto format = gl::Texture::Format()
-            .immutableStorage()
-            .loadTopDown();
-        updateTexture(mColorTexture, mDevice->colorSurface, format);
-    });
+            if (mVboMesh == nullptr)
+            {
+                mVboMesh = createVboMesh(info.device->getDepthSize(), isPointCloud);
+            }
+
+        });
+
+        info.device->signalColorDirty.connect([&]{
+            auto format = gl::Texture::Format()
+                .immutableStorage()
+                .loadTopDown();
+            updateTexture(info.mColorTexture, info.device->colorSurface, format);
+        });
+    }
 
 #if 0
-    mDepthTexture = gl::Texture::create(mDevice->getDepthSize().x, mDevice->getDepthSize().y,
+    mDepthTexture = gl::Texture::create(info.device->getDepthSize().x, info.device->getDepthSize().y,
         gl::Texture::Format().internalFormat(GL_R16UI).dataType(GL_UNSIGNED_SHORT).minFilter(GL_NEAREST).magFilter(GL_NEAREST));
-    mColorTexture = gl::Texture::create(mDevice->getDepthSize().x, mDevice->getDepthSize().y,
+    mColorTexture = gl::Texture::create(info.device->getDepthSize().x, info.device->getDepthSize().y,
         gl::Texture::Format().internalFormat(GL_RGB8).dataType(GL_UNSIGNED_BYTE).wrap(GL_CLAMP_TO_EDGE));
 #endif
 
     // SETUP VBO AND SHADER
     grid = createGrid();
-    mVboMesh = createVboMesh(isPointCloud);
 
     mPointCloudShader = am::glslProg("pointcloud.vert", "pointcloud.frag");
     mPointCloudShader->uniform("uTextureDepth", 0);
@@ -159,15 +172,14 @@ Live4D::Live4D()
     gl::enableDepthRead();
 }
 
-gl::VboMeshRef Live4D::createVboMesh(bool isPointCloud)
+gl::VboMeshRef Live4D::createVboMesh(vec2 depthSize, bool isPointCloud)
 {
-    vec2 sz = mDevice->getDepthSize();
     vector<vec2> vertices;
-    for (int32_t x = 0; x < sz.x; ++x)
+    for (int32_t x = 0; x < depthSize.x; ++x)
     {
-        for (int32_t y = 0; y < sz.y; ++y)
+        for (int32_t y = 0; y < depthSize.y; ++y)
         {
-            vertices.push_back(vec2(x, y) / sz);
+            vertices.push_back(vec2(x, y) / depthSize);
         }
     }
 
@@ -178,16 +190,16 @@ gl::VboMeshRef Live4D::createVboMesh(bool isPointCloud)
     auto vertexArrayBuffers = { make_pair(layout, vbo) };
 
     int spc = 1;
-    int I = sz.x - spc;
-    int J = sz.y - spc;
+    int I = depthSize.x - spc;
+    int J = depthSize.y - spc;
     vector<uint32_t> indices;
     for (int i = 0; i < I - spc; i += spc)
         for (int j = 0; j < J - spc; j += spc)
         {
-            int idx_00 = (i + 0) + (j + 0) * sz.x;
-            int idx_10 = (i + spc) + (j + 0) * sz.x;
-            int idx_01 = (i + 0) + (j + spc) * sz.x;
-            int idx_11 = (i + spc) + (j + spc) * sz.x;
+            int idx_00 = (i + 0) + (j + 0) * depthSize.x;
+            int idx_10 = (i + spc) + (j + 0) * depthSize.x;
+            int idx_01 = (i + 0) + (j + spc) * depthSize.x;
+            int idx_11 = (i + spc) + (j + spc) * depthSize.x;
             indices.emplace_back(idx_00);
             indices.emplace_back(idx_10);
             indices.emplace_back(idx_11);
@@ -207,15 +219,22 @@ void Live4D::update()
 {
     _FPS = getAverageFps();
 
-    if (ui::Checkbox("point cloud", &isPointCloud))
-    {
-        mVboMesh = createVboMesh(isPointCloud);
-    }
+    //if (ui::Checkbox("point cloud", &isPointCloud))
+    //{
+    //    mVboMesh = createVboMesh(isPointCloud);
+    //}
 
-    if (mDepthTexture) ui::Image(mDepthTexture, mDepthTexture->getSize());
-    if (mColorTexture) ui::Image(mColorTexture, mColorTexture->getSize());
-    if (mDepthToColorTableTexture) ui::Image(mDepthToColorTableTexture, mDepthToColorTableTexture->getSize());
-    if (mDepthToCameraTableTexture) ui::Image(mDepthToCameraTableTexture, mDepthToCameraTableTexture->getSize());
+    static bool showImages = false;
+    if (ui::Checkbox("Show images", &showImages))
+    {
+        for (const auto& info : mDeviceInfos)
+        {
+            if (info.mDepthTexture) ui::Image(info.mDepthTexture, info.mDepthTexture->getSize());
+            if (info.mColorTexture) ui::Image(info.mColorTexture, info.mColorTexture->getSize());
+            if (info.mDepthToColorTableTexture) ui::Image(info.mDepthToColorTableTexture, info.mDepthToColorTableTexture->getSize());
+            if (info.mDepthToCameraTableTexture) ui::Image(info.mDepthToCameraTableTexture, info.mDepthToCameraTableTexture->getSize());
+        }
+    }
 
     // TODO: use UBO
     mPointCloudShader->uniform("uMinDistance", MIN_DISTANCE_MM);
@@ -237,19 +256,20 @@ void Live4D::draw()
         gl::drawCoordinateFrame(1, 0.1, 0.01);
     }
 
-    if (mDepthTexture && mColorTexture)
+    for (auto& info : mDeviceInfos)
     {
         gl::ScopedGlslProg glsl(mPointCloudShader);
-        gl::ScopedTextureBind t0(mDepthTexture, 0);
-        gl::ScopedTextureBind t1(mColorTexture, 1);
-        gl::ScopedTextureBind t2(mDepthToCameraTableTexture, 2);
-        gl::ScopedTextureBind t3(mDepthToColorTableTexture, 3);
-        gl::ScopedModelMatrix model;
-        gl::scale({ SCALE, SCALE, SCALE });
+        if (info.mDepthTexture && info.mColorTexture)
+        {
+            gl::ScopedTextureBind t0(info.mDepthTexture, 0);
+            gl::ScopedTextureBind t1(info.mColorTexture, 1);
+            gl::ScopedTextureBind t2(info.mDepthToCameraTableTexture, 2);
+            gl::ScopedTextureBind t3(info.mDepthToColorTableTexture, 3);
+            gl::ScopedModelMatrix model;
+            gl::scale({ SCALE, SCALE, SCALE });
 
-        gl::draw(mVboMesh);
-
-        pointCloud.draw();
+            gl::draw(mVboMesh);
+        }
     }
 }
 
