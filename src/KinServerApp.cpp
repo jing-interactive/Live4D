@@ -17,10 +17,6 @@ using namespace std;
 using namespace ci;
 using namespace ci::app;
 
-using namespace ci;
-using namespace ci::app;
-using namespace std;
-
 gl::VertBatchRef createGrid()
 {
     auto grid = gl::VertBatch::create(GL_LINES);
@@ -46,9 +42,9 @@ gl::VertBatchRef createGrid()
 class Live4D : public App {
 public:
 
-    Live4D();
-    void           update()override;
-    void           draw()override;
+    void    setup() override;
+    void    update()override;
+    void    draw() override;
 
     // CAMERA
     CameraPersp         mCam;
@@ -56,17 +52,18 @@ public:
 
     struct DeviceInfo
     {
+        string name;
         ds::DeviceRef device;
         bool isVisible = true;
         bool showImage = false;
-        vec3 translation;
-        vec3 rotation;
+        mat4 transform;
         gl::TextureRef  depthTexture;
         gl::TextureRef  colorTexture;
         gl::TextureRef  depthToCameraTableTexture;
         gl::TextureRef  depthToColorTableTexture;
     };
     vector<DeviceInfo> mDeviceInfos;
+    int selectedIndex = 0;
 
     gl::VboMeshRef mVboMesh;
 
@@ -80,7 +77,7 @@ public:
 };
 
 
-Live4D::Live4D()
+void Live4D::setup()
 {
     readConfig();
     log::makeLogger<log::LoggerFile>();
@@ -117,6 +114,7 @@ Live4D::Live4D()
             return;
         }
 
+        info.name = "#" + toString(option.deviceId + 1);
         info.device->signalDepthToCameraTableDirty.connect([&]{
             auto format = gl::Texture::Format()
                 .immutableStorage()
@@ -173,6 +171,15 @@ Live4D::Live4D()
     // SETUP GL
     gl::enableDepthWrite();
     gl::enableDepthRead();
+
+    getWindow()->getSignalKeyUp().connect([&](KeyEvent& event) {
+        auto key = event.getCode();
+        if (key == KeyEvent::KEY_ESCAPE) quit();
+        if (key >= KeyEvent::KEY_1 && key <= KeyEvent::KEY_9)
+        {
+            selectedIndex = key - KeyEvent::KEY_1;
+        }
+    });
 }
 
 gl::VboMeshRef Live4D::createVboMesh(vec2 depthSize, bool isPointCloud)
@@ -226,27 +233,46 @@ void Live4D::update()
     //{
     //    mVboMesh = createVboMesh(isPointCloud);
     //}
-
-    for (auto& info : mDeviceInfos)
     {
-        char name[100];
-        sprintf(name, "device-%d", info.device->option.deviceId);
-        ui::ScopedWindow window(name);
-        ui::Checkbox("visible", &info.isVisible);
-        ui::DragFloat3("T", &info.translation.x, 0.01f);
-        ui::DragFloat3("R", &info.rotation.x, 0.01f);
-        if (ui::Button("Reset"))
+        ui::ScopedWindow window("Devices");
+        // selectable list
+        ui::ListBoxHeader("");
+        int idx = 0;
+        for (auto& info : mDeviceInfos)
         {
-            info.translation = {};
-            info.rotation = {};
+            if (ui::Selectable(info.name.c_str(), idx == selectedIndex))
+            {
+                selectedIndex = idx;
+            }
+            idx++;
         }
+        ui::ListBoxFooter();
 
-        if (false && ui::Checkbox("show images", &info.showImage))
+        if (selectedIndex != -1)
         {
-            if (info.depthTexture) ui::Image(info.depthTexture, info.depthTexture->getSize());
-            if (info.colorTexture) ui::Image(info.colorTexture, info.colorTexture->getSize());
-            if (info.depthToColorTableTexture) ui::Image(info.depthToColorTableTexture, info.depthToColorTableTexture->getSize());
-            if (info.depthToCameraTableTexture) ui::Image(info.depthToCameraTableTexture, info.depthToCameraTableTexture->getSize());
+            auto& info = mDeviceInfos[selectedIndex];
+            ui::Checkbox("Visible", &info.isVisible);
+            if (ui::Button("Reset"))
+            {
+                info.transform = mat4();
+            }
+
+            if (ui::EditGizmo(mCam.getViewMatrix(), mCam.getProjectionMatrix(), &info.transform))
+            {
+                mCamUi.disable();
+            }
+            else
+            {
+                mCamUi.enable();
+            }
+
+            if (ui::Checkbox("View Images", &info.showImage))
+            {
+                if (info.depthTexture) ui::Image(info.depthTexture, info.depthTexture->getSize());
+                if (info.colorTexture) ui::Image(info.colorTexture, info.colorTexture->getSize());
+                if (info.depthToColorTableTexture) ui::Image(info.depthToColorTableTexture, info.depthToColorTableTexture->getSize());
+                if (info.depthToCameraTableTexture) ui::Image(info.depthToCameraTableTexture, info.depthToCameraTableTexture->getSize());
+            }
         }
     }
 
@@ -280,7 +306,7 @@ void Live4D::draw()
             gl::ScopedTextureBind t2(info.depthToCameraTableTexture, 2);
             gl::ScopedTextureBind t3(info.depthToColorTableTexture, 3);
             gl::ScopedModelMatrix model;
-            gl::translate(info.translation);
+            gl::multModelMatrix(info.transform);
             gl::scale({ SCALE, SCALE, SCALE });
 
             gl::draw(mVboMesh);
