@@ -3,7 +3,6 @@
 #include "cinder/gl/gl.h"
 #include "cinder/params/Params.h"
 #include "cinder/Log.h"
-#include "cinder/PolyLine.h"
 #include "cinder/CameraUi.h"
 
 #include "Cinder-DepthSensor/include/DepthSensor.h"
