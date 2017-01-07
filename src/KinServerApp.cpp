@@ -98,8 +98,8 @@ void Live4D::setup()
     if (deviceCount == 0)
     {
         CI_LOG_E("There is no connected sensors for " << ds::strFromType(type));
-        quit();
-        return;
+        //quit();
+        //return;
     }
 
     mDeviceInfos.resize(deviceCount);
@@ -248,7 +248,7 @@ void Live4D::update()
         }
         ui::ListBoxFooter();
 
-        if (selectedIndex != -1)
+        if (selectedIndex != -1 && selectedIndex >= mDeviceInfos.size() - 1)
         {
             auto& info = mDeviceInfos[selectedIndex];
             ui::Checkbox("Visible", &info.isVisible);
