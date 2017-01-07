@@ -1,7 +1,7 @@
 Live4D
 =========
 
-Point cloud streaming system for devices supported by Cinder-DepthSensor.
+Point cloud streaming system for devices supported by Cinder-DepthSensor, x64 only.
 
 To build this project, you need:
 

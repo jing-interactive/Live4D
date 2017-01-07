@@ -98,6 +98,7 @@ void Live4D::setup()
     auto deviceCount = ds::Device::getDeviceCount(type);
     if (deviceCount == 0)
     {
+        CI_LOG_E("There is no connected sensors for " << ds::strFromType(type));
         quit();
         return;
     }
@@ -110,8 +111,8 @@ void Live4D::setup()
         info.device = ds::Device::create(type, option);
         if (!info.device->isValid())
         {
-            quit();
-            return;
+            //quit();
+            //return;
         }
 
         info.name = "#" + toString(option.deviceId + 1);
@@ -298,7 +299,11 @@ void Live4D::draw()
 
     for (auto& info : mDeviceInfos)
     {
-        if (info.isVisible && info.depthTexture && info.colorTexture)
+        if (info.isVisible &&
+            info.depthTexture &&
+            info.colorTexture &&
+            info.depthToCameraTableTexture &&
+            info.depthToColorTableTexture)
         {
             gl::ScopedGlslProg glsl(mPointCloudShader);
             gl::ScopedTextureBind t0(info.depthTexture, 0);
