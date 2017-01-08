@@ -266,7 +266,8 @@ void Live4D::update()
                 mCamUi.enable();
             }
 
-            if (ui::Checkbox("View Images", &info.showImage))
+            ui::Checkbox("View Images", &info.showImage);
+            if (info.showImage)
             {
                 if (info.depthTexture) ui::Image(info.depthTexture, info.depthTexture->getSize());
                 if (info.colorTexture) ui::Image(info.colorTexture, info.colorTexture->getSize());
